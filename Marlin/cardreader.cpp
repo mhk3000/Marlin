@@ -4,6 +4,7 @@
 #include "stepper.h"
 #include "temperature.h"
 #include "language.h"
+//#include <SD.h>
 
 #ifdef SDSUPPORT
 
@@ -18,8 +19,6 @@ CardReader::CardReader()
    saving = false;
    logging = false;
    autostart_atmillis=0;
-   workDirDepth = 0;
-   memset(workDirParents, 0, sizeof(workDirParents));
 
    autostart_stilltocheck=true; //the sd start is delayed, because otherwise the serial cannot answer fast enought to make contact with the hostsoftware.
    lastnr=0;
@@ -145,7 +144,7 @@ void CardReader::ls()
 
 void CardReader::initsd()
 {
-  cardOK = false;
+  cardOK = false;//here i have to make a change
   if(root.isOpen())
     root.close();
 #ifdef SDSLOW
@@ -236,6 +235,7 @@ void CardReader::openFile(char* name,bool read)
   SdFile myDir;
   curDir=&root;
   char *fname=name;
+  //LCD_FILENAME(fname);
   
   char *dirname_start,*dirname_end;
   if(name[0]=='/')
@@ -293,7 +293,7 @@ void CardReader::openFile(char* name,bool read)
       sdpos = 0;
       
       SERIAL_PROTOCOLLNPGM(MSG_SD_FILE_SELECTED);
-      lcd_setstatus(fname);
+      LCD_FILENAME(fname);
     }
     else
     {
@@ -315,7 +315,7 @@ void CardReader::openFile(char* name,bool read)
       saving = true;
       SERIAL_PROTOCOLPGM(MSG_SD_WRITE_TO_FILE);
       SERIAL_PROTOCOLLN(name);
-      lcd_setstatus(fname);
+      //lcd_setstatus(fname);
     }
   }
   
@@ -523,24 +523,19 @@ void CardReader::chdir(const char * relpath)
   }
   else
   {
-    if (workDirDepth < MAX_DIR_DEPTH) {
-      for (int d = ++workDirDepth; d--;)
-        workDirParents[d+1] = workDirParents[d];
-      workDirParents[0]=*parent;
-    }
+    workDirParentParent=workDirParent;
+    workDirParent=*parent;
+    
     workDir=newfile;
   }
 }
 
 void CardReader::updir()
 {
-  if(workDirDepth > 0)
+  if(!workDir.isRoot())
   {
-    --workDirDepth;
-    workDir = workDirParents[0];
-    int d;
-    for (int d = 0; d < workDirDepth; d++)
-      workDirParents[d] = workDirParents[d+1];
+    workDir=workDirParent;
+    workDirParent=workDirParentParent;
   }
 }
 
@@ -557,5 +552,7 @@ void CardReader::printingHasFinished()
         enquecommand_P(PSTR(SD_FINISHED_RELEASECOMMAND));
     }
     autotempShutdown();
-}
+    LCD_MESSAGEPGM(MSG_PRINT_DONE);
+    LCD_FILENAME(NOSD_FILE_MSG);
+  }
 #endif //SDSUPPORT
